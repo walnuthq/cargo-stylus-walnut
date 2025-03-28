@@ -1,0 +1,36 @@
+[workspace]
+members = ["main"]
+resolver = "2"
+
+[workspace.package]
+authors = ["Walnut"]
+version = "0.1.0"
+edition = "2021"
+homepage = "https://walnut.io"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/walnuthq/cargo-stylus-walnut"
+readme = "README.md"
+
+[workspace.dependencies]
+alloy-primitives = "=0.7.7"
+alloy-dyn-abi = "=0.7.7"
+alloy-json-abi = "=0.7.7"
+alloy-sol-macro = "=0.7.7"
+alloy-sol-types = "=0.7.7"
+alloy-ethers-typecast = "0.2.0"
+clap = { version = "4.5.4", features = [ "derive", "color" ] }
+ethers = "2.0.10"
+eyre = "0.6.8"
+hex = "0.4.3"
+rustc-host = "0.1.7"
+serde_json = "1.0.103"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread" ] }
+
+# replay tool
+function_name = "0.3.0"
+lazy_static = "1.4.0"
+libc = "0.2.148"
+libloading = "0.8.0"
+parking_lot = "0.12.1"
+sneks = "0.1.2"
