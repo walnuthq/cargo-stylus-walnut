@@ -89,7 +89,7 @@ Process 9256 stopped
    35  	        uint256 number;
    36  	    }
 Target 0: (cargo-stylus) stopped.
-Process 9256 launched: '/Users/djtodorovic/.cargo/bin/cargo-stylus' (arm64)
+Process 9256 launched: '~/.cargo/bin/cargo-stylus' (arm64)
 (lldb) c
 Process 9256 resuming
 call completed successfully
@@ -104,8 +104,8 @@ We have introduced a new `cargo` option called `usertrace`, that uses similar te
 ```
 $ cargo walnutdbg usertrace  --tx=0x8d291700d55adce514ada82575c76a5c2657c6d84888af3fe5af4702f2316263  --endpoint=$RPC_URL
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.36s
-(walnut-dbg) target create "/Users/djtodorovic/.cargo/bin/cargo-walnutdbg"
-Current executable set to '/Users/djtodorovic/.cargo/bin/cargo-walnutdbg' (arm64).
+(walnut-dbg) target create "~/.cargo/bin/cargo-walnutdbg"
+Current executable set to '~/.cargo/bin/cargo-walnutdbg' (arm64).
 (walnut-dbg) settings set -- target.run-args  "walnutdbg" "usertrace" "--tx=0x8d291700d55adce514ada82575c76a5c2657c6d84888af3fe5af4702f2316263" "--endpoint=http://localhost:8547" "--child"
 (walnut-dbg) b user_entrypoint
 Breakpoint 1: no locations (pending).
@@ -114,7 +114,7 @@ WARNING:  Unable to resolve breakpoint to any actual locations.
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s
 1 location added to breakpoint 1
 warning: This version of LLDB has no plugin for the language "rust". Inspection of frame variables will be limited.
-Process 9683 launched: '/Users/djtodorovic/.cargo/bin/cargo-walnutdbg' (arm64)
+Process 9683 launched: '~/.cargo/bin/cargo-walnutdbg' (arm64)
 Process 9683 stopped
 * thread #1, name = 'main', queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
     frame #0: 0x0000000103088bb8 libstylus_hello_world.dylib`user_entrypoint(len=4) at lib.rs:33:5
