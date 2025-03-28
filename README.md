@@ -14,7 +14,7 @@ $ cd cargo-stylus-walnut
 $ cargo build
 ```
 
-Dummy install command, so we can use it as `cargo` option:
+Install command, so we can use it as `cargo` option:
 
 ```
 $ cd target/debug && cp walnutdbg cargo-walnutdbg && cp cargo-walnutdbg ~/.cargo/bin && cd -
