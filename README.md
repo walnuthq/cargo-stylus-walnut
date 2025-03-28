@@ -214,3 +214,5 @@ $ source ./myvenv/bin/activate
 (myvenv) $ pip3 install colorama
 (myvenv) $ ../cargo-stylus-walnut/scripts/pretty_trace.py /tmp/lldb_function_trace.json
 ```
+
+<img width="620" alt="Screenshot 2025-03-28 at 08 00 55" src="https://github.com/user-attachments/assets/1ad1135b-64c6-4bcf-a02e-dd0af9b2e6c6" />
