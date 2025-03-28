@@ -203,4 +203,14 @@ $ cat /tmp/lldb_function_trace.json
 ]
 ```
 
-Saving the call trace in form of JSON is default, you can use `--pretty-print` option, and you will see:
+#### Pretty print
+
+Saving the call trace in form of JSON is default, you can use `pretty_trace.py`.
+Make sure you have `python` installed:
+
+```
+$ python3 -m venv myvenv
+$ source ./myvenv/bin/activate
+(myvenv) $ pip3 install colorama
+(myvenv) $ ../cargo-stylus-walnut/scripts/pretty_trace.py /tmp/lldb_function_trace.json
+```
