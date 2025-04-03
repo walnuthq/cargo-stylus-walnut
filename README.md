@@ -122,6 +122,10 @@ $ cargo walnutdbg usertrace  --tx=0x88b0ad9daa0b701d868a5f9a0132db7c0402178ba44e
                     new_number = <unavailable>
 ```
 
+In your terminal, it will look as:
+
+<img width="926" alt="Screenshot 2025-04-03 at 20 20 43" src="https://github.com/user-attachments/assets/7cb4f78e-591c-4c89-b630-173ffea21dae" />
+
 You may see the calltrace in form of JSON in:
 
 ```
