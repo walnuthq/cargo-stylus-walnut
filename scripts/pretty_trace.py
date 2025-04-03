@@ -39,6 +39,7 @@ def pretty_print_trace(trace_file: Path):
         file_name = call_frame.get("file", "<no file>")
         line = call_frame.get("line", 0)
         args = call_frame.get("args", [])
+        ret_val = call_frame.get("return", "<unavailable>")  # ADDED: show return value
 
         # Print the frame header
         print(
@@ -53,6 +54,9 @@ def pretty_print_trace(trace_file: Path):
                 arg_name = arg.get("name", "<arg>")
                 arg_value = arg.get("value", "<unavailable>")
                 print(f"      {Fore.MAGENTA}{arg_name}{Style.RESET_ALL} = {arg_value}")
+
+        # Print return value
+        print(f"      {Fore.BLUE}return{Style.RESET_ALL} = {ret_val}")  # ADDED: show return value
 
         # Blank line after each frame
         print()
