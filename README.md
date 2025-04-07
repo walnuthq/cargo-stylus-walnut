@@ -131,3 +131,17 @@ You may see the calltrace in form of JSON in:
 ```
 /tmp/lldb_function_trace.json
 ```
+
+By default, it does not follow functions from `stylus_sdk::`, if you want to see those, use `--verbose-usertrace` option, e.g.:
+
+```
+$ cargo walnutdbg usertrace  --tx=0x88b0ad9daa0b701d868a5f9a0132db7c0402178ba44ed8dec4ba76784c7194fd  --endpoint=$RPC_URL --verbose-usertrace
+```
+
+Or, if you want to track calls from other libraries, just use `--trace-external-usertrace` as follows:
+
+```
+cargo walnutdbg usertrace  --tx=0x88b0ad9daa0b701d868a5f9a0132db7c0402178ba44ed8dec4ba76784c7194fd  --endpoint=$RPC_URL --verbose-usertrace --trace-external-usertrace="std,core,other_contract"
+```
+
+and it will track calls from `std::`, `core` and `other_contract::`.

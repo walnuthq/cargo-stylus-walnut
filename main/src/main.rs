@@ -329,6 +329,16 @@ struct TraceArgs {
     /// If set, use the native tracer instead of the JavaScript one. Notice the native tracer might not be available in the node.
     #[arg(short, long, default_value_t = false)]
     use_native_tracer: bool,
+    /// If set, capture calls from `stylus_sdk::` and external calls as well.
+    #[arg(long, default_value_t = false)]
+    verbose_usertrace: bool,
+    /// Comma-separated list of other crates to trace. Example: --trace-external-usertrace="std,core,other_contract"
+    #[arg(
+        long,
+        use_value_delimiter = true,
+        value_delimiter = ','
+    )]
+    trace_external_usertrace: Vec<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -760,7 +770,18 @@ async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
     let crate_name = derive_crate_name(&shared_library);
 
     // Construct the "calltrace start" command for walnut-dbg:
-    let calltrace_cmd = format!("calltrace start '^{}::'`", crate_name);
+    let mut crates_to_trace = vec![crate_name];
+    if args.trace.verbose_usertrace {
+        crates_to_trace.push("stylus_sdk".to_string());
+    }
+    // Now add anything the user provided in `--trace-external-usertrace`
+    for external in &args.trace.trace_external_usertrace {
+        crates_to_trace.push(external.clone());
+    }
+    // Build up a big alternation, e.g. "^(crateA|crateB|stylus_sdk)::"
+    let pattern = format!("^({})::", crates_to_trace.join("|"));
+    // Finally, build the command
+    let calltrace_cmd = format!("calltrace start '{}'", pattern);
 
     // The "child" branch is where the actual user code is replayed.
     // If we are NOT in child mode, we invoke the debugger in a child process,
@@ -889,6 +910,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
                 bail!("no debugger found")
             }
         };
+
         let mut cmd = sys::new_command(cmd_name);
         for arg in args.iter() {
             cmd.arg(arg);
