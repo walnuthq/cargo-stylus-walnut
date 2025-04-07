@@ -808,8 +808,8 @@ async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
         let lldb_args = &lldb_array;
 
         // Prefer walnut-dbg if installed:
-        let (cmd_name, cmd_args) = if sys::command_exists("walnut-dbg") {
-            ("walnut-dbg", lldb_args)
+        let (cmd_name, cmd_args) = if sys::command_exists("rust-walnut-dbg") {
+            ("rust-walnut-dbg", lldb_args)
         } else {
             eprintln!("walnut-dbg debugger not installed!");
             bail!("no debugger found");
