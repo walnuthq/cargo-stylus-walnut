@@ -339,6 +339,10 @@ struct TraceArgs {
         value_delimiter = ','
     )]
     trace_external_usertrace: Vec<String>,
+    /// If passed, do NOT redirect walnut-dbg's output to `/dev/null`.
+    /// By default, we silence walnut-dbg to keep console output clean.
+    #[arg(long, default_value_t = false)]
+    enable_walnutdbg_output: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -774,18 +778,14 @@ async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
     if args.trace.verbose_usertrace {
         crates_to_trace.push("stylus_sdk".to_string());
     }
-    // Now add anything the user provided in `--trace-external-usertrace`
     for external in &args.trace.trace_external_usertrace {
         crates_to_trace.push(external.clone());
     }
-    // Build up a big alternation, e.g. "^(crateA|crateB|stylus_sdk)::"
     let pattern = format!("^({})::", crates_to_trace.join("|"));
-    // Finally, build the command
     let calltrace_cmd = format!("calltrace start '{}'", pattern);
 
-    // The "child" branch is where the actual user code is replayed.
-    // If we are NOT in child mode, we invoke the debugger in a child process,
-    // hide all output, and then pretty-print the resulting JSON:
+    // The "child" branch is the actual user code replay.
+    // If we are NOT in child mode, spawn a new debugger process.
     if !args.child {
         let trace_file_path = "/tmp/lldb_function_trace.json";
         let _ = std::fs::remove_file(trace_file_path);
@@ -815,49 +815,44 @@ async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
             bail!("no debugger found");
         };
 
-        // Build the debugger command
         let mut cmd = sys::new_command(cmd_name);
         cmd.args(cmd_args);
 
-        // Forward all *original* arguments (so we preserve usertrace input):
+        // Forward all *original* arguments (so we preserve usertrace input).
         for arg in std::env::args() {
             cmd.arg(arg);
         }
         cmd.arg("--child");
 
-        // Redirect all streams to /dev/null
-        cmd.stdin(Stdio::null());
-        cmd.stdout(Stdio::null());
-        cmd.stderr(Stdio::null());
+        // Only silence the walnut-dbg output if the user has NOT requested to see it.
+        if !args.trace.enable_walnutdbg_output {
+            cmd.stdin(Stdio::null());
+            cmd.stdout(Stdio::null());
+            cmd.stderr(Stdio::null());
+        }
 
-        // Run the debugger *synchronously* and wait for it to finish:
         let status = cmd.status()?;
         if !status.success() {
             bail!("Debugger returned non-zero exit code");
         }
 
-        // Now invoke pretty-print-trace on the JSON that `calltrace` wrote
+        // Now invoke the pretty-printer on whatever walnut-dbg wrote out
         let mut pp_cmd = sys::new_command("/usr/local/bin/pretty-print-trace");
         pp_cmd.arg("/tmp/lldb_function_trace.json");
-
-        // Also hide any output from pretty-print if you like,
-        // or remove these lines if you *do* want to see the tree:
-        // pp_cmd.stdout(Stdio::null());
-        // pp_cmd.stderr(Stdio::null());
 
         let status = pp_cmd.status()?;
         if !status.success() {
             bail!("Failed to run pretty-print-trace. Exit code: {}", status);
         }
 
-        // We are done; return before we ever hit the "child" path
         return Ok(());
     }
 
+    // At this point, we are in the "child" execution path.
+    // Actually replay the transaction via our loaded WASM.
     let provider = sys::new_provider(&args.trace.endpoint)?;
     let trace = Trace::new(provider, args.trace.tx, args.trace.use_native_tracer).await?;
 
-    // replay the call in-process
     let args_len = trace.tx.input.len();
     unsafe {
         *hostio::FRAME.lock() = Some(trace.reader());
@@ -875,7 +870,7 @@ async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
 
     Ok(())
 }
-  
+
 async fn replay(args: ReplayArgs) -> Result<()> {
     let macos = cfg!(target_os = "macos");
     if !args.child {
