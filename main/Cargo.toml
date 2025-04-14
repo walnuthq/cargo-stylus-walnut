@@ -1,5 +1,5 @@
 [package]
-name = "walnutdbg"
+name = "cargo-walnutdbg"
 keywords = ["walnut", "arbitrum", "ethereum", "stylus", "alloy", "cargo"]
 description = "CLI tool for debugging Stylus contracts on Arbitrum chains"
 
