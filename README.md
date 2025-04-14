@@ -135,7 +135,7 @@ $ cargo walnutdbg usertrace \
 
 In your terminal, it will look as:
 
-<img width="926" alt="Screenshot 2025-04-03 at 20 22 16" src="https://github.com/user-attachments/assets/8a30a863-049d-4805-a028-384ce3b3c6c8" />
+<img width="699" alt="Screenshot 2025-04-14 at 13 09 47" src="https://github.com/user-attachments/assets/45ea3aaa-afa7-48fe-a832-7bf878903a6b" />
 
 You may see the calltrace in form of JSON in:
 
