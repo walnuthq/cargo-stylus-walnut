@@ -18,7 +18,7 @@ use tokio::runtime::Builder;
 use trace::Trace;
 use util::{color::Color, sys};
 
-use std::process::Stdio;
+use std::{io::{stderr, Read, Write}, process::Stdio};
 
 // Conditional import for Unix-specific `CommandExt`
 #[cfg(unix)]
@@ -837,11 +837,15 @@ async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
         }
 
         // Now invoke the pretty-printer on whatever walnut-dbg wrote out
-        let mut pp_cmd = sys::new_command("/usr/local/bin/pretty-print-trace");
+        let mut pp_cmd = sys::new_command("pretty-print-trace");
         pp_cmd.arg("/tmp/lldb_function_trace.json");
-
-        let status = pp_cmd.status()?;
-        if !status.success() {
+        let mut child = pp_cmd.spawn()?;
+        if let Err(out) =  child.wait() {
+            if let Some(mut out) = child.stderr.take() {
+                let mut buf = Vec::new();
+                let _ = out.read_to_end(&mut buf);
+                let _ = stderr().write_all(&buf);
+            }
             bail!("Failed to run pretty-print-trace. Exit code: {}", status);
         }
 
