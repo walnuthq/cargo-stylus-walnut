@@ -8,7 +8,8 @@ use alloy_primitives::{TxHash, B256};
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
 use ethers::abi::Bytes;
-use ethers::types::{H160, U256};
+use ethers::types::{H160, U256, H256};
+use ethers::providers::Middleware;
 use eyre::{bail, eyre, Context, Result};
 use std::{
     fmt,
@@ -767,11 +768,23 @@ fn derive_crate_name(shared_library: &Path) -> String {
 
 async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
     let macos = cfg!(target_os = "macos");
-
     build_shared_library(&args.trace.project, args.package, args.features)?;
     let library_extension = if macos { ".dylib" } else { ".so" };
     let shared_library = find_shared_library(&args.trace.project, library_extension)?;
     let crate_name = derive_crate_name(&shared_library);
+
+    // Fetch address of the contract.
+    let provider = sys::new_provider(&args.trace.endpoint)?;
+    let eth_tx_hash = H256::from_slice(args.trace.tx.as_ref());
+    if let Some(receipt) = provider.get_transaction_receipt(eth_tx_hash).await? {
+        if let Some(to_addr) = receipt.to {
+            println!("Tracing contract at address: \x1b[1;32m{:?}\x1b[0m", to_addr);
+        } else {
+            eprintln!("Warning: tx {} has no “to” address", args.trace.tx);
+        }
+    } else {
+        eprintln!("Warning: no receipt found for tx {}", args.trace.tx);
+    }
 
     // Construct the "calltrace start" command for walnut-dbg:
     let mut crates_to_trace = vec![crate_name];
