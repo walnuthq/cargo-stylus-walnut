@@ -19,7 +19,7 @@ use tokio::runtime::Builder;
 use trace::Trace;
 use util::{color::Color, sys};
 
-use std::{io::{stderr, Read, Write}, process::Stdio};
+use std::process::Stdio;
 
 // Conditional import for Unix-specific `CommandExt`
 #[cfg(unix)]
@@ -28,6 +28,9 @@ use std::{env, os::unix::process::CommandExt};
 // Conditional import for Windows
 #[cfg(windows)]
 use std::env;
+
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 mod activate;
 mod cache;
@@ -344,6 +347,14 @@ struct TraceArgs {
     /// By default, we silence walnut-dbg to keep console output clean.
     #[arg(long, default_value_t = false)]
     enable_walnutdbg_output: bool,
+
+    /// Solidity contract address for EVM-level callTracer.
+    #[arg(
+        long,
+        value_name = "ADDRESS",
+        value_parser = clap::value_parser!(H160)
+    )]
+    addr_solidity: Option<H160>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -766,6 +777,21 @@ fn derive_crate_name(shared_library: &Path) -> String {
     crate_name.to_string()
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct DebugTraceResult {
+    #[serde(rename = "calls")]
+    calls: Vec<DebugTraceCall>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct DebugTraceCall {
+    from: H160,
+    to: H160,
+    input: String,
+    #[serde(default)]
+    calls: Vec<DebugTraceCall>,
+}
+
 async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
     let macos = cfg!(target_os = "macos");
     build_shared_library(&args.trace.project, args.package, args.features)?;
@@ -773,7 +799,7 @@ async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
     let shared_library = find_shared_library(&args.trace.project, library_extension)?;
     let crate_name = derive_crate_name(&shared_library);
 
-    // Fetch address of the contract.
+    // 1) Get the receipt & print the to-address
     let provider = sys::new_provider(&args.trace.endpoint)?;
     let eth_tx_hash = H256::from_slice(args.trace.tx.as_ref());
     if let Some(receipt) = provider.get_transaction_receipt(eth_tx_hash).await? {
@@ -786,98 +812,98 @@ async fn usertrace(args: UsertraceArgs) -> eyre::Result<()> {
         eprintln!("Warning: no receipt found for tx {}", args.trace.tx);
     }
 
-    // Construct the "calltrace start" command for walnut-dbg:
+    // 2) If the user supplied --addr-solidity, pull the EVM callTracer tree
+    if let Some(sol_addr) = args.trace.addr_solidity {
+        let raw = json!([
+            args.trace.tx,
+            { "tracer": "callTracer", "to": sol_addr }
+        ]);
+        let dbg: DebugTraceResult = provider
+            .request::<serde_json::Value, DebugTraceResult>(
+                "debug_traceTransaction",
+                raw,
+            )
+            .await
+            .wrap_err("debug_traceTransaction failed")?;
+
+        let _ = std::fs::remove_file("/tmp/sol_trace.json");
+        // write out the solidity tracer JSON for the pretty-printer
+        std::fs::write(
+            "/tmp/sol_trace.json",
+            serde_json::to_string_pretty(&dbg)?,
+        )?;
+
+        println!("Fetched Solidity callTracer into /tmp/sol_trace.json\n");
+    }
+
+    // 3) Build the walnut-dbg calltrace command
     let mut crates_to_trace = vec![crate_name];
     if args.trace.verbose_usertrace {
         crates_to_trace.push("stylus_sdk".to_string());
     }
-    for external in &args.trace.trace_external_usertrace {
-        crates_to_trace.push(external.clone());
-    }
+    crates_to_trace.extend(args.trace.trace_external_usertrace.clone());
     let pattern = format!("^({})::", crates_to_trace.join("|"));
     let calltrace_cmd = format!("calltrace start '{}'", pattern);
 
-    // The "child" branch is the actual user code replay.
-    // If we are NOT in child mode, spawn a new debugger process.
+    // 4) Non-child: spawn walnut-dbg + pretty-print
     if !args.child {
-        let trace_file_path = "/tmp/lldb_function_trace.json";
-        let _ = std::fs::remove_file(trace_file_path);
+        // remove any stale LLDB trace
+        let _ = std::fs::remove_file("/tmp/lldb_function_trace.json");
 
-        let lldb_array = [
-            "-o",
-            "b user_entrypoint",
-            "-o",
-            "r",
-            "-o",
-            &calltrace_cmd,
-            "-o",
-            "c",
-            "-o",
-            "calltrace stop",
-            "-o",
-            "q",
-            "--",
-        ];
-        let lldb_args = &lldb_array;
-
-        // Prefer walnut-dbg if installed:
+        // invoke walnut-dbg
         let (cmd_name, cmd_args) = if sys::command_exists("rust-walnut-dbg") {
-            ("rust-walnut-dbg", lldb_args)
+            ("rust-walnut-dbg", &[
+                "-o", "b user_entrypoint",
+                "-o", "r",
+                "-o", &calltrace_cmd,
+                "-o", "c",
+                "-o", "calltrace stop",
+                "-o", "q",
+                "--",
+            ][..])
         } else {
-            eprintln!("walnut-dbg debugger not installed!");
-            bail!("no debugger found");
+            bail!("rust-walnut-dbg not installed");
         };
-
-        let mut cmd = sys::new_command(cmd_name);
-        cmd.args(cmd_args);
-
-        // Forward all *original* arguments (so we preserve usertrace input).
-        for arg in std::env::args() {
-            cmd.arg(arg);
+        let mut dbg_cmd = sys::new_command(cmd_name);
+        dbg_cmd.args(cmd_args);
+        // forward all original args and append child flag
+        for a in std::env::args() {
+            dbg_cmd.arg(a);
         }
-        cmd.arg("--child");
-
-        // Only silence the walnut-dbg output if the user has NOT requested to see it.
+        dbg_cmd.arg("--child");
         if !args.trace.enable_walnutdbg_output {
-            cmd.stdin(Stdio::null());
-            cmd.stdout(Stdio::null());
-            cmd.stderr(Stdio::null());
+            dbg_cmd.stdin(Stdio::null())
+                   .stdout(Stdio::null())
+                   .stderr(Stdio::null());
         }
-
-        let status = cmd.status()?;
+        let status = dbg_cmd.status()?;
         if !status.success() {
-            bail!("Debugger returned non-zero exit code");
+            bail!("walnut-dbg returned {}", status);
         }
 
-        // Now invoke the pretty-printer on whatever walnut-dbg wrote out
-        let mut pp_cmd = sys::new_command("pretty-print-trace");
-        pp_cmd.arg("/tmp/lldb_function_trace.json");
-        let mut child = pp_cmd.spawn()?;
-        if let Err(out) =  child.wait() {
-            if let Some(mut out) = child.stderr.take() {
-                let mut buf = Vec::new();
-                let _ = out.read_to_end(&mut buf);
-                let _ = stderr().write_all(&buf);
-            }
-            bail!("Failed to run pretty-print-trace. Exit code: {}", status);
+        // now pretty-print both trees
+        let mut pp = sys::new_command("pretty-print-trace");
+        pp.arg("/tmp/lldb_function_trace.json");
+        // only pass solidity file if we generated it
+        if args.trace.addr_solidity.is_some() {
+            pp.arg("/tmp/sol_trace.json");
         }
+        let mut child = pp.spawn()?;
+        let _ = child.wait();
 
         return Ok(());
     }
 
-    // At this point, we are in the "child" execution path.
-    // Actually replay the transaction via our loaded WASM.
+    // 5) Child: actually replay the WASM
     let provider = sys::new_provider(&args.trace.endpoint)?;
     let trace = Trace::new(provider, args.trace.tx, args.trace.use_native_tracer).await?;
-
     let args_len = trace.tx.input.len();
+
     unsafe {
         *hostio::FRAME.lock() = Some(trace.reader());
-
         type Entrypoint = unsafe extern "C" fn(usize) -> usize;
         let lib = libloading::Library::new(shared_library)?;
         let main: libloading::Symbol<Entrypoint> = lib.get(b"user_entrypoint")?;
-
         match main(args_len) {
             0 => println!("call completed successfully"),
             1 => println!("call reverted"),
