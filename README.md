@@ -1,3 +1,5 @@
+> ⚠️ **Note:** This project has moved to https://github.com/walnuthq/cargo-stylus
+
 # cargo-stylus-walnut
 
 This repo is a fork of cargo stylus with walnut debugging capabilities.
